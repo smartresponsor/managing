@@ -67,7 +67,12 @@ YAML);
                 resourceCache: new ManageHostCrudResourceCache($projectDir, $projectDir.'/var/cache'),
             );
 
-            $resources = $discovery->discover();
+            $cache = new ManageHostCrudResourceCache($projectDir, $projectDir.'/var/cache');
+            $cache->store([]);
+            self::assertSame([], $discovery->discover());
+
+            $resources = $discovery->discover(refreshCache: true);
+            self::assertCount(1, $discovery->discover());
 
             self::assertCount(1, $resources);
             self::assertSame('cataloging', $resources[0]->componentKey);

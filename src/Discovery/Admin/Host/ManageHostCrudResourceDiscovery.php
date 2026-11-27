@@ -25,9 +25,9 @@ final class ManageHostCrudResourceDiscovery
     }
 
     /** @return list<ManageCrudResourceDefinition> */
-    public function discover(): array
+    public function discover(bool $refreshCache = false): array
     {
-        $cachedResources = $this->resourceCache->load($this->isCachedResourceStillValid(...));
+        $cachedResources = $refreshCache ? null : $this->resourceCache->load($this->isCachedResourceStillValid(...));
         if (null !== $cachedResources) {
             return $cachedResources;
         }

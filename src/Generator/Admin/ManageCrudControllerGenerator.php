@@ -57,7 +57,7 @@ final class ManageCrudControllerGenerator
             );
         }
 
-        $this->writer->removeStaleControllers($generatedControllers);
+        // The current host selection is not authority to delete shared controller source.
 
         return $generatedControllers;
     }

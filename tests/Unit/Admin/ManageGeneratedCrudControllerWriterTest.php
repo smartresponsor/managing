@@ -10,6 +10,63 @@ use PHPUnit\Framework\TestCase;
 
 final class ManageGeneratedCrudControllerWriterTest extends TestCase
 {
+    public function testSynchronizationPreservesControllersOutsideTheCurrentHostSelection(): void
+    {
+        $directory = sys_get_temp_dir().'/manage-preservation-'.bin2hex(random_bytes(8));
+        $writer = new ManageGeneratedCrudControllerWriter($directory);
+        $generator = new \App\Managing\Generator\Admin\ManageCrudControllerGenerator($directory, writer: $writer);
+        $generatedDirectory = $writer->generatedDirectory();
+        mkdir($generatedDirectory, 0700, true);
+        $existingFile = $generatedDirectory.'/ManageShippingCrudController.php';
+        $existingSource = '<?php // Preserved controller customization.';
+        file_put_contents($existingFile, $existingSource);
+
+        try {
+            self::assertSame([], $generator->synchronize([]));
+            self::assertSame($existingSource, file_get_contents($existingFile));
+        } finally {
+            unlink($existingFile);
+            rmdir($generatedDirectory);
+            rmdir(dirname($generatedDirectory));
+            rmdir(dirname($generatedDirectory, 2));
+            rmdir(dirname($generatedDirectory, 3));
+            rmdir($directory);
+        }
+    }
+
+    public function testConflictingHostSelectionCannotReplaceExistingControllerSource(): void
+    {
+        $directory = sys_get_temp_dir().'/manage-conflict-'.bin2hex(random_bytes(8));
+        $writer = new ManageGeneratedCrudControllerWriter($directory);
+        $fqcn = 'App\\Managing\\Controller\\Crud\\Generated\\ManageShippingCrudController';
+        $file = $writer->generatedDirectory().'/ManageShippingCrudController.php';
+
+        try {
+            $writer->writeController($fqcn, 'App\\Shipping\\Entity\\ShipmentEntity', 'shipping');
+            $source = file_get_contents($file);
+            self::assertIsString($source);
+            $writer->writeController($fqcn, 'App\\Shipping\\Entity\\ShipmentEntity', 'shipping');
+            self::assertSame($source, file_get_contents($file));
+
+            try {
+                $writer->writeController($fqcn, 'App\\Shipping\\Entity\\ParcelEntity', 'shipping');
+                self::fail('A conflicting host selection must not replace existing controller source.');
+            } catch (\RuntimeException $exception) {
+                self::assertStringContainsString('existing source preserved', $exception->getMessage());
+                self::assertSame($source, file_get_contents($file));
+            }
+        } finally {
+            if (is_file($file)) {
+                unlink($file);
+            }
+            foreach ([$writer->generatedDirectory(), dirname($writer->generatedDirectory()), dirname($writer->generatedDirectory(), 2), dirname($writer->generatedDirectory(), 3), $directory] as $path) {
+                if (is_dir($path)) {
+                    rmdir($path);
+                }
+            }
+        }
+    }
+
     public function testItRendersReadOnlyControllerWithoutMigrationTrait(): void
     {
         $writer = new ManageGeneratedCrudControllerWriter(sys_get_temp_dir(), new ManageCrudResourcePolicy());
