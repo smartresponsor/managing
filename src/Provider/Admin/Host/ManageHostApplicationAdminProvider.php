@@ -43,6 +43,7 @@ final class ManageHostApplicationAdminProvider implements ManageAdminProviderInt
         ?ManageHostCrudResourceCache $resourceCache = null,
         ?ManageCrudResourcePolicy $resourcePolicy = null,
         ?ManageHostCrudResourceDiscovery $resourceDiscovery = null,
+        private readonly bool $refreshResourceCache = false,
     ) {
         $this->pathResolver = $pathResolver ?? new ManageHostPathResolver(
             projectDir: $projectDir,
@@ -107,6 +108,6 @@ final class ManageHostApplicationAdminProvider implements ManageAdminProviderInt
             return $this->cachedResources = [];
         }
 
-        return $this->cachedResources = $this->resourceDiscovery->discover();
+        return $this->cachedResources = $this->resourceDiscovery->discover($this->refreshResourceCache);
     }
 }

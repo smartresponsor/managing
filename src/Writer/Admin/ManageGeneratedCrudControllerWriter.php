@@ -39,36 +39,55 @@ final class ManageGeneratedCrudControllerWriter
     public function writeController(string $fqcn, string $entityClass, string $componentKey): void
     {
         $generatedDir = $this->generatedDirectory();
-        if (!is_dir($generatedDir)) {
-            mkdir($generatedDir, 0777, true);
+        if (!is_dir($generatedDir) && !mkdir($generatedDir, 0777, true) && !is_dir($generatedDir)) {
+            throw new \RuntimeException('Cannot create the generated controller directory.');
         }
 
         $filePath = $generatedDir.'/'.$this->shortClassName($fqcn).'.php';
-        $existingSource = is_file($filePath) ? (string) file_get_contents($filePath) : '';
-        $content = $this->controllerSource($fqcn, $entityClass, $componentKey, $existingSource);
 
-        if (is_file($filePath) && file_get_contents($filePath) === $content) {
+        // Shared source cannot be replaced by a different host's selected entity
+        // or generation policy. An intentional source change needs explicit admission.
+        if (is_file($filePath)) {
+            $this->assertExistingController($filePath, $fqcn, $entityClass, $componentKey);
+
             return;
         }
 
-        file_put_contents($filePath, $content);
-    }
-
-    /**
-     * @param list<class-string> $generatedControllers
-     */
-    public function removeStaleControllers(array $generatedControllers): void
-    {
-        $generatedDir = $this->generatedDirectory();
-        $desiredFiles = [];
-        foreach ($generatedControllers as $fqcn) {
-            $desiredFiles[$generatedDir.'/'.$this->shortClassName($fqcn).'.php'] = true;
+        $content = $this->controllerSource($fqcn, $entityClass, $componentKey);
+        $temporary = tempnam($generatedDir, '.managing-');
+        if (false === $temporary) {
+            throw new \RuntimeException('Cannot allocate generated controller temporary file: '.$fqcn);
         }
 
-        foreach (glob($generatedDir.'/*CrudController.php') ?: [] as $file) {
-            if (!isset($desiredFiles[$file])) {
-                @unlink($file);
+        try {
+            if (realpath(dirname($temporary)) !== realpath($generatedDir)) {
+                throw new \RuntimeException('Generated controller temporary file is outside its source directory.');
             }
+            if (strlen($content) !== file_put_contents($temporary, $content, LOCK_EX)) {
+                throw new \RuntimeException('Cannot write generated controller source: '.$fqcn);
+            }
+            if (!chmod($temporary, 0666 & ~umask())) {
+                throw new \RuntimeException('Cannot set generated controller source permissions: '.$fqcn);
+            }
+
+            // Publishing by hard link is atomic and cannot overwrite an existing
+            // file, even when another process has selected the same FQCN.
+            if (!@link($temporary, $filePath)) {
+                clearstatcache(true, $filePath);
+                $this->assertExistingController($filePath, $fqcn, $entityClass, $componentKey);
+            }
+        } finally {
+            if (!unlink($temporary)) {
+                throw new \RuntimeException('Cannot remove generated controller temporary file: '.$fqcn);
+            }
+        }
+    }
+
+    private function assertExistingController(string $filePath, string $fqcn, string $entityClass, string $componentKey): void
+    {
+        $existingSource = is_file($filePath) ? file_get_contents($filePath) : false;
+        if (false === $existingSource || $existingSource !== $this->controllerSource($fqcn, $entityClass, $componentKey, $existingSource)) {
+            throw new \RuntimeException('Generated controller source conflict; existing source preserved: '.$fqcn);
         }
     }
 

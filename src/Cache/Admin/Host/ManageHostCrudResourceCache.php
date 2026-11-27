@@ -72,8 +72,8 @@ final class ManageHostCrudResourceCache
     {
         $cacheFile = $this->cacheFilePath();
         $cacheDir = dirname($cacheFile);
-        if (!is_dir($cacheDir)) {
-            mkdir($cacheDir, 0777, true);
+        if (!is_dir($cacheDir) && !mkdir($cacheDir, 0777, true) && !is_dir($cacheDir)) {
+            throw new \RuntimeException('Cannot create the Managing resource cache directory.');
         }
 
         $payload = [
@@ -98,7 +98,10 @@ final class ManageHostCrudResourceCache
             ),
         ];
 
-        file_put_contents($cacheFile, '<?php return '.var_export($payload, true).';', LOCK_EX);
+        $source = '<?php return '.var_export($payload, true).';';
+        if (strlen($source) !== file_put_contents($cacheFile, $source, LOCK_EX)) {
+            throw new \RuntimeException('Cannot write the Managing resource cache.');
+        }
     }
 
     public function cacheFilePath(): string

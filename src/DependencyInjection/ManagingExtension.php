@@ -46,6 +46,7 @@ final class ManagingExtension extends Extension implements PrependExtensionInter
             namespacePrefixes: $config['host_scan_namespace_prefixes'],
             excludedNamespaces: $config['host_scan_excluded_namespaces'],
             resourcePolicy: $resourcePolicy,
+            refreshResourceCache: true,
         );
         $contributionFilter = new ManageContributionFilter(
             enabledComponents: $config['enabled_components'],
@@ -54,7 +55,7 @@ final class ManagingExtension extends Extension implements PrependExtensionInter
         );
         $leftMenu = array_flip($config['left_menu']);
         $generator = new ManageCrudControllerGenerator($bundleDir, $resourcePolicy);
-        $generator->synchronize(array_values(array_filter(
+        $generatedControllers = $generator->synchronize(array_values(array_filter(
             iterator_to_array($hostProvider->getCrudResources(), false),
             static fn ($resource): bool => $contributionFilter->isCrudResourceEnabled($resource)
                 && isset($leftMenu[$resource->componentKey]),
@@ -62,6 +63,12 @@ final class ManagingExtension extends Extension implements PrependExtensionInter
 
         $loader = new YamlFileLoader($container, new FileLocator(dirname(__DIR__, 2).'/config'));
         $loader->load('services.yaml');
+
+        foreach ($generatedControllers as $controllerClass) {
+            $container->register($controllerClass, $controllerClass)
+                ->setAutowired(true)
+                ->setAutoconfigured(true);
+        }
 
         $this->configureFieldUserProfileBackendAliases($container, $config);
         (new ManagingFieldExternalAccessBackendConfigurator())->configure($container, $config);
