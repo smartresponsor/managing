@@ -51,25 +51,11 @@ final class ManageGeneratedCrudControllerWriter
             return;
         }
 
+        if (is_file($filePath)) {
+            throw new \LogicException(sprintf('Review and reconcile existing EasyAdmin controller source explicitly: %s', $filePath));
+        }
+
         file_put_contents($filePath, $content);
-    }
-
-    /**
-     * @param list<class-string> $generatedControllers
-     */
-    public function removeStaleControllers(array $generatedControllers): void
-    {
-        $generatedDir = $this->generatedDirectory();
-        $desiredFiles = [];
-        foreach ($generatedControllers as $fqcn) {
-            $desiredFiles[$generatedDir.'/'.$this->shortClassName($fqcn).'.php'] = true;
-        }
-
-        foreach (glob($generatedDir.'/*CrudController.php') ?: [] as $file) {
-            if (!isset($desiredFiles[$file])) {
-                @unlink($file);
-            }
-        }
     }
 
     public function controllerSource(string $fqcn, string $entityClass, string $componentKey, string $existingSource = ''): string

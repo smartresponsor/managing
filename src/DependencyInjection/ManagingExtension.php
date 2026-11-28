@@ -54,7 +54,7 @@ final class ManagingExtension extends Extension implements PrependExtensionInter
         );
         $leftMenu = array_flip($config['left_menu']);
         $generator = new ManageCrudControllerGenerator($bundleDir, $resourcePolicy);
-        $generator->synchronize(array_values(array_filter(
+        $controllers = $generator->selectPrimaryControllers(array_values(array_filter(
             iterator_to_array($hostProvider->getCrudResources(), false),
             static fn ($resource): bool => $contributionFilter->isCrudResourceEnabled($resource)
                 && isset($leftMenu[$resource->componentKey]),
@@ -62,6 +62,19 @@ final class ManagingExtension extends Extension implements PrependExtensionInter
 
         $loader = new YamlFileLoader($container, new FileLocator(dirname(__DIR__, 2).'/config'));
         $loader->load('services.yaml');
+
+        // Source controllers are admitted from the installed package, never generated during compilation.
+        foreach ($controllers as $controller => $resource) {
+            if (!is_subclass_of($controller, \App\Managing\Controller\Crud\ManageContentCrudController::class)
+                || $controller::getEntityFqcn() !== $resource->entityClass) {
+                throw new \LogicException(sprintf(
+                    'Managing requires a versioned controller %s for %s. Reconcile the controller source before building the application.',
+                    $controller,
+                    $resource->entityClass,
+                ));
+            }
+            $container->register($controller, $controller)->setAutowired(true)->setAutoconfigured(true);
+        }
 
         $this->configureFieldUserProfileBackendAliases($container, $config);
         (new ManagingFieldExternalAccessBackendConfigurator())->configure($container, $config);

@@ -20,6 +20,7 @@ final class ManageHostCrudControllerResolver
         $componentKey = $this->classNameResolver->componentKeyFromClass($entityClass);
 
         $candidates = [];
+        $candidates[] = sprintf('App\\Managing\\Controller\\Crud\\Generated\\Manage%sCrudController', $this->classNameResolver->studly($componentKey));
         $candidates[] = sprintf('App\\Managing\\Controller\\Crud\\Generated\\%sCrudController', $this->classNameResolver->studly($componentKey));
 
         if (str_contains($entityClass, '\\Entity\\')) {
@@ -37,7 +38,8 @@ final class ManageHostCrudControllerResolver
         $candidates[] = sprintf('App\\Controller\\Admin\\%sCrudController', $shortName);
 
         foreach (array_unique($candidates) as $candidate) {
-            if (class_exists($candidate) && is_subclass_of($candidate, CrudControllerInterface::class)) {
+            if (class_exists($candidate) && is_subclass_of($candidate, CrudControllerInterface::class)
+                && $candidate::getEntityFqcn() === $entityClass) {
                 return $candidate;
             }
         }
