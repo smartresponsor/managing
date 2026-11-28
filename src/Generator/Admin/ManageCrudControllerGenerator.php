@@ -32,6 +32,23 @@ final class ManageCrudControllerGenerator
     public function synchronize(array $resources): array
     {
         $generatedControllers = [];
+        foreach ($this->selectPrimaryControllers($resources) as $fqcn => $resource) {
+            $this->writer->writeController($fqcn, $resource->entityClass, $resource->componentKey);
+            $generatedControllers[] = $fqcn;
+        }
+
+        return $generatedControllers;
+    }
+
+    /**
+     * Selects the required controller contracts without writing or deleting source.
+     *
+     * @param list<ManageCrudResourceDefinition> $resources
+     * @return array<class-string, ManageCrudResourceDefinition>
+     */
+    public function selectPrimaryControllers(array $resources): array
+    {
+        $controllers = [];
         $resourcesByComponent = [];
         foreach ($resources as $resource) {
             if (!$resource->enabled || ManageCrudResourceDefinition::SURFACE_MANAGE !== $resource->surface) {
@@ -47,19 +64,10 @@ final class ManageCrudControllerGenerator
                 continue;
             }
 
-            $fqcn = $this->controllerFqcn($componentKey);
-            $generatedControllers[] = $fqcn;
-
-            $this->writer->writeController(
-                $fqcn,
-                $primaryResource->entityClass,
-                $componentKey,
-            );
+            $controllers[$this->controllerFqcn($componentKey)] = $primaryResource;
         }
 
-        $this->writer->removeStaleControllers($generatedControllers);
-
-        return $generatedControllers;
+        return $controllers;
     }
 
     /**
